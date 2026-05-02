@@ -1,49 +1,69 @@
 # Gemini Tool Bridge + OpenClaw 🤖
 
-本项目不仅是一个简单的 API 中转，更是为 **OpenClaw-Zero-Token** 量身定制的“大脑适配器”。
+本项目是一个工业级的 AI Agent 枢纽，将 **免费的 Gemini 网页版 API (via geminiweb2api)** 与 **OpenClaw-Zero-Token** 深度集成，实现具备强大工具调用能力的免费 AI 助手。
+
+---
+
+## ⚡ 极速复现 (快速开始)
+
+在新服务器上部署，仅需以下几步：
+
+### 1. 克隆与安装环境
+```bash
+git clone https://github.com/joe12803/gemini-tool-bridge.git
+cd gemini-tool-bridge
+
+# 一键安装所有依赖 (Node.js, Docker, ddgr 等)
+chmod +x install.sh
+./install.sh
+```
+
+### 2. 配置并一键启动
+确保你的 `geminiweb2api` 已在 8080 端口运行，然后执行：
+```bash
+# 一键启动适配器网关
+chmod +x start.sh
+./start.sh
+```
 
 ---
 
 ## 🏗️ 工业级全栈架构
 
 1. **[大脑] geminiweb2api (8080)**: 网页版 Gemini 转换。
-2. **[适配] Gemini-Tool-Bridge (18789)**: 格式标准化与协议转换（本项目）。
-3. **[助手] OpenClaw (18789)**: 统领全局，调用各种高级工具。
+2. **[枢纽] Gemini-Tool-Bridge (18789)**: 协议标准化（本项目）。
+3. **[统领] OpenClaw (18789)**: 调度高级工具（搜索、执行代码、文件管理）。
 
 ---
 
-## 🚀 深度集成步骤 (如何让 OpenClaw 用上它)
+## 🚀 深度集成 OpenClaw
 
-如果你已经在一台新服务器上克隆了 `openclaw-zero-token`，请按以下步骤配置：
-
-### 1. 运行适配器
-```bash
-docker run -d --name gemini-bridge -p 18789:18789 joe12803/gemini-tool-bridge
-```
-
-### 2. 配置 OpenClaw
-在 OpenClaw 目录下执行以下命令，将适配器注册为“通道”：
+当适配器启动后，你可以让 OpenClaw 接管它：
 
 ```bash
-# 进入 OpenClaw 目录
 cd openclaw-zero-token
 
-# 添加通道 (指向我们的适配器端口)
+# 注册通道
 node openclaw.mjs channels add --id gemini-free --type openai --base-url http://127.0.0.1:18789/v1 --api-key sk-123456
 
-# 设置为默认大脑
+# 设置默认模型
 node openclaw.mjs config set agents.defaults.model.primary gemini-free/gemini-3-flash
 ```
 
-### 3. 测试 OpenClaw 的高级工具
-现在你可以使用 OpenClaw 所有的重型工具了：
+---
+
+## 🧪 功能验证
+
+测试适配器是否已成功打通大脑与工具：
+
 ```bash
-# 让 OpenClaw 帮你改写服务器上的一个文件
-node openclaw.mjs agent --message "读取 /etc/hosts 文件并告诉我内容" --deliver
+# 测试搜索工具
+curl -X POST http://localhost:18789/v1/chat/completions \
+-H "Content-Type: application/json" \
+-d '{"messages": [{"role": "user", "content": "搜索一下今天的科技新闻"}]}'
 ```
 
 ---
 
 ## 💡 为什么需要这一层 Bridge？
-OpenClaw 对后台 API 的格式要求非常严苛（必须有 `/v1/models` 响应，必须有标准的 Header）。
-直接接入 `geminiweb2api` 往往会因为路径或权限问题报错，本 Bridge 完美解决了这些“琐事”。
+OpenClaw 对后台 API 的规范性要求极高。本 Bridge 提供了标准的 `/v1/models` 响应、自动化的 Header 注入以及针对网页版 API 的路径修正，是 OpenClaw 稳定运行的基石。
