@@ -5,36 +5,45 @@ const PORT = process.env.PORT || 18789;
 const GEMINI_BACKEND = process.env.GEMINI_BACKEND || 'http://127.0.0.1:8080';
 
 const server = http.createServer((req, res) => {
+    // 跨域处理
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+    if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
+
+    // 处理模型列表请求 (OpenClaw 启动时会探测)
+    if (req.url === '/v1/models') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+            object: "list",
+            data: [{ id: "gemini-3-flash", object: "model", created: 1677610602, owned_by: "google" }]
+        }));
+        return;
+    }
+
     let body = '';
     req.on('data', chunk => { body += chunk; });
     req.on('end', () => {
         try {
             const data = JSON.parse(body || '{}');
-            const msg = data.messages ? data.messages[data.messages.length - 1].content : '';
+            const messages = data.messages || [];
+            const msg = messages.length > 0 ? messages[messages.length - 1].content : '';
 
-            // --- 工具识别逻辑 ---
-            
-            // 1. 搜索工具 (Google Search via ddgr)
-            if (msg.includes('搜索')) {
-                const query = msg.replace('搜索', '').trim();
-                const searchResult = execSync(`ddgr --json -n 3 "${query}"`).toString();
-                const results = JSON.parse(searchResult).map(r => `${r.title}: ${r.url}`).join('\\n');
-                return sendResponse(res, `[工具调用: Search] 找到以下结果：\\n${results}`);
-            }
-
-            // 2. 时间工具 (Clock)
-            if (msg.includes('几点')) {
-                const time = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
-                return sendResponse(res, `[工具调用: Clock] 现在的北京时间是：${time}`);
-            }
-
-            // --- 普通对话转发 ---
+            // --- 核心转发逻辑 ---
             const proxyReq = http.request(GEMINI_BACKEND + req.url, {
                 method: req.method,
-                headers: { ...req.headers, 'host': '127.0.0.1:8080' }
+                headers: { 
+                    ...req.headers, 
+                    'host': '127.0.0.1:8080',
+                    'Authorization': 'Bearer sk-123456' // 强制注入后端所需的 Key
+                }
             }, (proxyRes) => {
                 res.writeHead(proxyRes.statusCode, proxyRes.headers);
                 proxyRes.pipe(res);
+            });
+            proxyReq.on('error', (err) => {
+                res.writeHead(500); res.end(JSON.stringify({ error: "Backend Unreachable: " + err.message }));
             });
             proxyReq.write(body);
             proxyReq.end();
@@ -44,12 +53,4 @@ const server = http.createServer((req, res) => {
     });
 });
 
-function sendResponse(res, text) {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({
-        id: 'chatcmpl-' + Date.now(),
-        choices: [{ message: { role: 'assistant', content: text }, finish_reason: 'stop' }]
-    }));
-}
-
-server.listen(PORT, '0.0.0.0', () => console.log(`Gemini Tool Bridge running on port ${PORT}`));
+server.listen(PORT, '0.0.0.0', () => console.log(`Gemini Bridge for OpenClaw running on ${PORT}`));
