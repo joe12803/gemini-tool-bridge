@@ -1,0 +1,12 @@
+{
+  "name": "gemini-tool-bridge",
+  "version": "1.0.0",
+  "description": "Bridge between Gemini Web API and Local Tools",
+  "main": "bridge.js",
+  "scripts": {
+    "start": "node bridge.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}
